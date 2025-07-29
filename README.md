@@ -5,5 +5,5 @@ To run the dashboard
 3. Run `python app.py`
 
 To update the data:
-1. Put new `database.parquet` and `analytics.duckdb` in /data (found [here](https://drive.google.com/drive/u/2/folders/1jptzbO2BvnbizKuPjEiQe_e_6vAp6Rt5))
+1. Put new `database.parquet` and `analytics.duckdb` in `/data` (found [here](https://drive.google.com/drive/u/2/folders/1jptzbO2BvnbizKuPjEiQe_e_6vAp6Rt5))
 2. Run `python analytics.duckdb`
