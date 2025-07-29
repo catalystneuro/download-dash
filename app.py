@@ -250,14 +250,12 @@ def get_global_downloads():
             
             time_series.append(day_data)
 
-        out = jsonify({
+        return jsonify({
             'time_series': time_series,
             'top_datasets': top_regions,  # Using 'top_datasets' for consistency, but contains regions
             'dataset_totals': region_totals_dict,  # Using 'dataset_totals' for consistency, but contains region totals
             'view_type': 'regions'  # Add indicator for frontend
         })
-
-        return out
 
     else:
         # Default behavior: show datasets across all regions
@@ -271,8 +269,8 @@ def get_global_downloads():
         top_datasets = [str(dataset_id) for dataset_id in dataset_totals.head(7).index]
         dataset_totals_dict = {str(k): int(v) for k, v in dataset_totals.head(7).items()}
 
-        print(f"Top datasets: {top_datasets}")
-        print(f"Dataset totals: {dataset_totals_dict}")
+        # print(f"Top datasets: {top_datasets}")
+        # print(f"Dataset totals: {dataset_totals_dict}")
 
         # Pivot to get datasets as columns
         time_series_pivot = daily_data.pivot(index='download_date', columns='dandiset_id', values='total_bytes_downloaded').fillna(0)
@@ -294,14 +292,12 @@ def get_global_downloads():
             
             time_series.append(day_data)
 
-        out = jsonify({
+        return jsonify({
             'time_series': time_series,
             'top_datasets': top_datasets,
             'dataset_totals': dataset_totals_dict,
             'view_type': 'datasets'  # Add indicator for frontend
         })
-
-        return out
 
 @app.route('/api/datasets')
 def get_datasets():
@@ -511,7 +507,7 @@ def get_dandisets_metadata():
         # Create response with metadata for requested datasets
         dandisets = []
         for dataset_id in dataset_ids:
-            print(f"Processing dataset ID: {dataset_id}")
+            # print(f"Processing dataset ID: {dataset_id}")
             # Format dataset ID as 6-digit string
             dataset_id_str = str(dataset_id).zfill(6)
             total_bytes = dataset_totals.get(dataset_id, 0)
