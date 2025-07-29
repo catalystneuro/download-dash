@@ -8,7 +8,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Path to the parquet file
-PARQUET_PATH = 'data/daily_ip_dandiset_downloads.parquet'
+PARQUET_PATH = 'data/daily_ip_dandiset_stats.parquet'
 
 # Global variable to cache the dataframe
 _df_cache = None
@@ -77,12 +77,12 @@ def get_regions():
         filtered_df = filtered_df[filtered_df['download_date'] <= end_date_obj]
     
     # Aggregate by region
-    region_stats = filtered_df.groupby(['region', 'latitude', 'longitude']).agg({
-        'total_bytes_sent': 'sum',
+    region_stats = filtered_df.groupby(['region_code', 'latitude', 'longitude']).agg({
+        'total_bytes_downloaded': 'sum',
         'dandiset_id': 'nunique'
     }).reset_index()
     
-    region_stats.columns = ['region', 'latitude', 'longitude', 'total_bytes', 'dataset_count']
+    region_stats.columns = ['region_code', 'latitude', 'longitude', 'total_bytes', 'dataset_count']
     
     # Remove regions with no downloads
     region_stats = region_stats[region_stats['total_bytes'] > 0]
@@ -91,7 +91,7 @@ def get_regions():
     regions = []
     for _, row in region_stats.iterrows():
         # Parse region code to get name and country
-        region_code = row['region']
+        region_code = row['region_code']
         if '/' in region_code:
             country, name = region_code.split('/', 1)
         else:
@@ -128,7 +128,7 @@ def get_region_downloads(region_code):
         })
     
     # Filter by region
-    region_df = df[df['region'] == region_code].copy()
+    region_df = df[df['region_code'] == region_code].copy()
     
     if region_df.empty:
         return jsonify({
@@ -152,17 +152,17 @@ def get_region_downloads(region_code):
         region_df = region_df[region_df['download_date'] <= end_date_obj]
     
     # Get dataset totals for this region
-    dataset_totals = region_df.groupby('dandiset_id')['total_bytes_sent'].sum().sort_values(ascending=False)
+    dataset_totals = region_df.groupby('dandiset_id')['total_bytes_downloaded'].sum().sort_values(ascending=False)
     
     # Get top 7 datasets
     top_datasets = [str(dataset_id) for dataset_id in dataset_totals.head(7).index]
     dataset_totals_dict = {str(k): int(v) for k, v in dataset_totals.head(7).items()}
     
     # Create time series data
-    daily_data = region_df.groupby(['download_date', 'dandiset_id'])['total_bytes_sent'].sum().reset_index()
+    daily_data = region_df.groupby(['download_date', 'dandiset_id'])['total_bytes_downloaded'].sum().reset_index()
     
     # Pivot to get datasets as columns
-    time_series_pivot = daily_data.pivot(index='download_date', columns='dandiset_id', values='total_bytes_sent').fillna(0)
+    time_series_pivot = daily_data.pivot(index='download_date', columns='dandiset_id', values='total_bytes_downloaded').fillna(0)
     
     # Prepare time series output
     time_series = []
@@ -221,17 +221,17 @@ def get_global_downloads():
     # When a specific dataset is selected, show regions instead of datasets
     if dataset_filter and dataset_filter != 'ALL':
         # Aggregate by date and region for the selected dataset
-        daily_data = filtered_df.groupby(['download_date', 'region'])['total_bytes_sent'].sum().reset_index()
+        daily_data = filtered_df.groupby(['download_date', 'region_code'])['total_bytes_downloaded'].sum().reset_index()
         
         # Get region totals for this dataset
-        region_totals = filtered_df.groupby('region')['total_bytes_sent'].sum().sort_values(ascending=False)
+        region_totals = filtered_df.groupby('region_code')['total_bytes_downloaded'].sum().sort_values(ascending=False)
         
         # Get top 7 regions
         top_regions = [str(region) for region in region_totals.head(7).index]
         region_totals_dict = {str(k): int(v) for k, v in region_totals.head(7).items()}
         
         # Pivot to get regions as columns
-        time_series_pivot = daily_data.pivot(index='download_date', columns='region', values='total_bytes_sent').fillna(0)
+        time_series_pivot = daily_data.pivot(index='download_date', columns='region_code', values='total_bytes_downloaded').fillna(0)
         
         # Prepare time series output
         time_series = []
@@ -261,17 +261,17 @@ def get_global_downloads():
     else:
         # Default behavior: show datasets across all regions
         # Aggregate by date and dataset
-        daily_data = filtered_df.groupby(['download_date', 'dandiset_id'])['total_bytes_sent'].sum().reset_index()
+        daily_data = filtered_df.groupby(['download_date', 'dandiset_id'])['total_bytes_downloaded'].sum().reset_index()
         
         # Get dataset totals
-        dataset_totals = filtered_df.groupby('dandiset_id')['total_bytes_sent'].sum().sort_values(ascending=False)
+        dataset_totals = filtered_df.groupby('dandiset_id')['total_bytes_downloaded'].sum().sort_values(ascending=False)
         
         # Get top 7 datasets
         top_datasets = [str(dataset_id) for dataset_id in dataset_totals.head(7).index]
         dataset_totals_dict = {str(k): int(v) for k, v in dataset_totals.head(7).items()}
         
         # Pivot to get datasets as columns
-        time_series_pivot = daily_data.pivot(index='download_date', columns='dandiset_id', values='total_bytes_sent').fillna(0)
+        time_series_pivot = daily_data.pivot(index='download_date', columns='dandiset_id', values='total_bytes_downloaded').fillna(0)
         
         # Prepare time series output
         time_series = []
@@ -307,18 +307,18 @@ def get_datasets():
     
     # Aggregate by dataset
     dataset_stats = df.groupby('dandiset_id').agg({
-        'total_bytes_sent': 'sum',
-        'region': 'nunique',
+        'total_bytes_downloaded': 'sum',
+        'region_code': 'nunique',
         'latitude': 'count'  # Use this as a proxy for records count
     }).reset_index()
     
     # Count unique countries by parsing region codes
     country_counts = []
     for dataset_id in dataset_stats['dandiset_id']:
-        dataset_regions = df[df['dandiset_id'] == dataset_id]['region'].unique()
+        dataset_regions = df[df['dandiset_id'] == dataset_id]['region_code'].unique()
         countries = set()
         for region in dataset_regions:
-            if '/' in region:
+            if region is not None and '/' in region:
                 country = region.split('/')[0]
                 countries.add(country)
             else:
@@ -358,14 +358,14 @@ def get_stats():
         })
     
     # Calculate overall statistics
-    total_bytes = int(df['total_bytes_sent'].sum())
+    total_bytes = int(df['total_bytes_downloaded'].sum())
     total_datasets = int(df['dandiset_id'].nunique())
-    unique_regions = int(df['region'].nunique())
+    unique_regions = int(df['region_code'].nunique())
     
     # Count unique countries
     countries = set()
-    for region in df['region'].unique():
-        if '/' in region:
+    for region in df['region_code'].unique():
+        if region is not None and '/' in region:
             country = region.split('/')[0]
             countries.add(country)
         else:
@@ -449,7 +449,7 @@ def get_featured_dandisets():
             })
         
         # Get the top datasets by download volume
-        dataset_totals = df.groupby('dandiset_id')['total_bytes_sent'].sum().sort_values(ascending=False).head(7)
+        dataset_totals = df.groupby('dandiset_id')['total_bytes_downloaded'].sum().sort_values(ascending=False).head(7)
         
         # Get DANDI metadata
         dandi_metadata = get_dandi_metadata()
@@ -561,12 +561,12 @@ def get_dataset_details(dataset_id):
             return jsonify({'error': 'Dataset not found'}), 404
         
         # Calculate statistics
-        total_bytes = int(dataset_df['total_bytes_sent'].sum())
-        unique_regions = int(dataset_df['region'].nunique())
+        total_bytes = int(dataset_df['total_bytes_downloaded'].sum())
+        unique_regions = int(dataset_df['region_code'].nunique())
         
         # Count unique countries
         countries = set()
-        for region in dataset_df['region'].unique():
+        for region in dataset_df['region_code'].unique():
             if '/' in region:
                 country = region.split('/')[0]
                 countries.add(country)
