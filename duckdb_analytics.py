@@ -798,8 +798,8 @@ def main():
     print("=" * 50)
     
     db = DuckDBAnalytics(db_path="data/analytics.duckdb", parquet_path="data/database.parquet")
-    db.load_blob_mapping("maps/blob_index_to_id.yaml")
-    db.load_ip_region_mapping("maps/index_to_region.yaml", "maps/region_codes_to_coordinates.yaml")
+    # db.load_blob_mapping("maps/blob_index_to_id.yaml")
+    # db.load_ip_region_mapping("maps/index_to_region.yaml", "maps/region_codes_to_coordinates.yaml")
     db.build_asset_mappings()
     db.analyze_asset_dandiset_relationships()
     db.create_analytics_views()
