@@ -66,7 +66,7 @@ def get_regions():
     filtered_df = df.copy()
     
     if dataset_filter and dataset_filter != 'ALL':
-        filtered_df = filtered_df[filtered_df['dandiset_id'] == int(dataset_filter)]
+        filtered_df = filtered_df[filtered_df['dandiset_id'] == dataset_filter]
     
     if start_date:
         start_date_obj = pd.to_datetime(start_date).date()
@@ -140,7 +140,7 @@ def get_region_downloads(region_code):
     
     # Apply dataset filter
     if dataset_filter and dataset_filter != 'ALL':
-        region_df = region_df[region_df['dandiset_id'] == int(dataset_filter)]
+        region_df = region_df[region_df['dandiset_id'] == dataset_filter]
     
     # Apply date filters
     if start_date:
@@ -171,9 +171,8 @@ def get_region_downloads(region_code):
         other_bytes = 0
         
         for dataset_id, bytes_sent in row.items():
-            dataset_str = str(int(dataset_id))
-            if dataset_str in top_datasets:
-                day_data[dataset_str] = int(float(bytes_sent))
+            if dataset_id in top_datasets:
+                day_data[dataset_id] = int(float(bytes_sent))
             else:
                 other_bytes += int(float(bytes_sent))
         
@@ -208,7 +207,7 @@ def get_global_downloads():
     filtered_df = df.copy()
     
     if dataset_filter and dataset_filter != 'ALL':
-        filtered_df = filtered_df[filtered_df['dandiset_id'] == int(dataset_filter)]
+        filtered_df = filtered_df[filtered_df['dandiset_id'] == dataset_filter]
     
     if start_date:
         start_date_obj = pd.to_datetime(start_date).date()
@@ -250,14 +249,16 @@ def get_global_downloads():
                 day_data['OTHER'] = other_bytes
             
             time_series.append(day_data)
-        
-        return jsonify({
+
+        out = jsonify({
             'time_series': time_series,
             'top_datasets': top_regions,  # Using 'top_datasets' for consistency, but contains regions
             'dataset_totals': region_totals_dict,  # Using 'dataset_totals' for consistency, but contains region totals
             'view_type': 'regions'  # Add indicator for frontend
         })
-    
+
+        return out
+
     else:
         # Default behavior: show datasets across all regions
         # Aggregate by date and dataset
@@ -269,7 +270,10 @@ def get_global_downloads():
         # Get top 7 datasets
         top_datasets = [str(dataset_id) for dataset_id in dataset_totals.head(7).index]
         dataset_totals_dict = {str(k): int(v) for k, v in dataset_totals.head(7).items()}
-        
+
+        print(f"Top datasets: {top_datasets}")
+        print(f"Dataset totals: {dataset_totals_dict}")
+
         # Pivot to get datasets as columns
         time_series_pivot = daily_data.pivot(index='download_date', columns='dandiset_id', values='total_bytes_downloaded').fillna(0)
         
@@ -280,9 +284,8 @@ def get_global_downloads():
             other_bytes = 0
             
             for dataset_id, bytes_sent in row.items():
-                dataset_str = str(int(dataset_id))
-                if dataset_str in top_datasets:
-                    day_data[dataset_str] = int(float(bytes_sent))
+                if dataset_id in top_datasets:
+                    day_data[dataset_id] = int(float(bytes_sent))
                 else:
                     other_bytes += int(float(bytes_sent))
             
@@ -290,13 +293,15 @@ def get_global_downloads():
                 day_data['OTHER'] = other_bytes
             
             time_series.append(day_data)
-        
-        return jsonify({
+
+        out = jsonify({
             'time_series': time_series,
             'top_datasets': top_datasets,
             'dataset_totals': dataset_totals_dict,
             'view_type': 'datasets'  # Add indicator for frontend
         })
+
+        return out
 
 @app.route('/api/datasets')
 def get_datasets():
@@ -506,6 +511,7 @@ def get_dandisets_metadata():
         # Create response with metadata for requested datasets
         dandisets = []
         for dataset_id in dataset_ids:
+            print(f"Processing dataset ID: {dataset_id}")
             # Format dataset ID as 6-digit string
             dataset_id_str = str(dataset_id).zfill(6)
             total_bytes = dataset_totals.get(dataset_id, 0)
@@ -547,15 +553,18 @@ def get_dataset_details(dataset_id):
         df = load_data()
         if df.empty:
             return jsonify({'error': 'No data available'}), 404
+    
         
-        # Convert dataset_id to integer for filtering
+        # Convert dataset_id to zero-padded format to match data storage
         try:
             dataset_id_int = int(dataset_id)
+            dataset_id_padded = str(dataset_id_int).zfill(6)
         except ValueError:
-            return jsonify({'error': 'Invalid dataset ID'}), 400
+            # If it's already a string, use it as-is
+            dataset_id_padded = dataset_id
         
         # Filter data for this dataset
-        dataset_df = df[df['dandiset_id'] == dataset_id_int]
+        dataset_df = df[df['dandiset_id'] == dataset_id_padded]
         
         if dataset_df.empty:
             return jsonify({'error': 'Dataset not found'}), 404
@@ -567,22 +576,19 @@ def get_dataset_details(dataset_id):
         # Count unique countries
         countries = set()
         for region in dataset_df['region_code'].unique():
-            if '/' in region:
+            if region is not None and '/' in region:
                 country = region.split('/')[0]
                 countries.add(country)
-            else:
+            elif region is not None:
                 countries.add(region)
         unique_countries = len(countries)
         
         # Get DANDI metadata
         dandi_metadata = get_dandi_metadata()
-        
-        # Format dataset ID as 6-digit string
-        dataset_id_str = str(dataset_id).zfill(6)
-        
+                
         # Build response with all available information
         dataset_info = {
-            'id': dataset_id_str,
+            'id': dataset_id,
             'total_bytes': total_bytes,
             'total_bytes_formatted': format_bytes(total_bytes),
             'unique_regions': unique_regions,
@@ -590,8 +596,8 @@ def get_dataset_details(dataset_id):
         }
         
         # Add DANDI metadata if available
-        if dataset_id_str in dandi_metadata:
-            metadata = dandi_metadata[dataset_id_str]
+        if dataset_id in dandi_metadata:
+            metadata = dandi_metadata[dataset_id]
             dataset_info.update({
                 'name': metadata['name'],
                 'landing_url': metadata['landing_url'],
@@ -599,14 +605,14 @@ def get_dataset_details(dataset_id):
             })
         else:
             dataset_info.update({
-                'name': f'Dataset {dataset_id_str}',
-                'landing_url': f'https://dandiarchive.org/dandiset/{dataset_id_str}/draft',
+                'name': f'Dataset {dataset_id}',
+                'landing_url': f'https://dandiarchive.org/dandiset/{dataset_id}/draft',
                 'version': 'draft'
             })
         
         # Try to get additional metadata from DANDI API for this specific dataset
         try:
-            api_url = f"https://api.dandiarchive.org/api/dandisets/{dataset_id_str}/"
+            api_url = f"https://api.dandiarchive.org/api/dandisets/{dataset_id}/"
             response = requests.get(api_url, timeout=10)
             
             if response.status_code == 200:
@@ -646,7 +652,7 @@ def get_dataset_details(dataset_id):
                         dataset_info['contributors_count'] = 0
         
         except Exception as e:
-            print(f"Failed to fetch detailed DANDI metadata for {dataset_id_str}: {e}")
+            print(f"Failed to fetch detailed DANDI metadata for {dataset_id}: {e}")
             # Set defaults if API call fails
             dataset_info.update({
                 'description': 'Description not available',
