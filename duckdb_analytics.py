@@ -284,7 +284,7 @@ class DuckDBAnalytics:
             dandiset_id = dandiset.identifier
             
             # Skip problematic dandisets
-            if dandiset_id == "000571":
+            if dandiset_id in ["000571", "000773"]:
                 logger.info(f"Skipping dandiset {dandiset_id} (too many assets)")
                 continue
             
@@ -362,7 +362,7 @@ class DuckDBAnalytics:
                                 
                                 if is_zarr:
                                     # For zarr assets, try to get zarr attribute, fallback to identifier
-                                    blob_id = getattr(asset, 'zarr', None) or asset.identifier
+                                    blob_id = asset.zarr
                                     asset_type = "zarr"
                                 else:
                                     # For blob assets, get blob attribute - let it error if missing
